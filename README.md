@@ -4,9 +4,9 @@ A small C++ simulator for learning how jobs can be scheduled on compute-cluster 
 
 ## What currently works
 
-The program defines a `Job` with a submission time, requested runtime, and CPU request. It also defines a `Node` with total and available CPU counts. The example constructs one of each and prints their values.
+The program processes manually defined job arrivals and completions in simulated-time order. A node allocates CPUs when a job starts and releases them when it completes. The simulated clock jumps directly to each event time.
 
-Scheduling and CPU allocation are not implemented yet.
+There is no waiting queue or scheduler yet. An arriving job that cannot start immediately is reported and discarded.
 
 ## Build
 
@@ -24,6 +24,14 @@ cmake --build build
 Expected output:
 
 ```text
-Job 1: submit=0, runtime=10, cpus=4
-Node 0: total_cpus=8, available_cpus=8
+time 0: Job 1 arrived
+time 0: Job 1 started; 4/8 CPUs available
+time 3: Job 2 arrived
+time 3: Job 2 started; 0/8 CPUs available
+time 8: Job 2 completed; 4/8 CPUs available
+time 8: Job 3 arrived
+time 8: Job 3 started; 0/8 CPUs available
+time 10: Job 1 completed; 4/8 CPUs available
+time 10: Job 3 completed; 8/8 CPUs available
+Simulation finished at time 10; 8/8 CPUs available
 ```
