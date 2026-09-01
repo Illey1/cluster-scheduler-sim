@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.16)
 project(cluster-scheduler-sim LANGUAGES CXX)
 
 add_executable(cluster-scheduler-sim
+    src/csv_io.cpp
     src/main.cpp
 )
 
