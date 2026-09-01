@@ -1,6 +1,6 @@
 # cluster-scheduler-sim
 
-A small C++ simulator for learning how jobs can be scheduled on compute-cluster nodes. It is inspired by submitting jobs to managed clusters, but it is not an implementation or accurate simulation of SLURM.
+A small C++ simulator for learning how jobs can be scheduled on compute-cluster nodes. It is inspired by submitting jobs to managed clusters.
 
 ## Behavior
 
