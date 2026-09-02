@@ -88,17 +88,41 @@ std::vector<Job>::iterator highest_priority_job(
         });
 }
 
+std::vector<Job>::iterator first_fitting_fcfs_job(
+    std::vector<Job>& waiting_jobs, const Node& node) {
+    auto selected_job = waiting_jobs.end();
+
+    // This greedy scan uses only current CPU availability; it does not reserve
+    // a future start time for an earlier blocked job.
+    for (auto job = waiting_jobs.begin(); job != waiting_jobs.end(); ++job) {
+        if (node.can_run(*job)
+            && (selected_job == waiting_jobs.end()
+                || has_higher_priority(
+                    *job, *selected_job, SchedulingPolicy::Fcfs))) {
+            selected_job = job;
+        }
+    }
+
+    return selected_job;
+}
+
 void start_waiting_jobs(std::vector<Job>& waiting_jobs, int current_time,
                         Node& node, EventQueue& future_events,
                         std::vector<JobResult>& job_results,
                         std::ostream& event_log,
                         SchedulingPolicy policy) {
     while (!waiting_jobs.empty()) {
-        const auto next_job = highest_priority_job(waiting_jobs, policy);
+        auto next_job = highest_priority_job(waiting_jobs, policy);
 
-        // Skipping a blocked highest-priority job here would be backfilling.
         if (!node.can_run(*next_job)) {
-            break;
+            if (policy != SchedulingPolicy::Backfill) {
+                break;
+            }
+
+            next_job = first_fitting_fcfs_job(waiting_jobs, node);
+            if (next_job == waiting_jobs.end()) {
+                break;
+            }
         }
 
         const Job job = *next_job;
@@ -119,9 +143,13 @@ SchedulingPolicy parse_scheduling_policy(const std::string& policy_name) {
         return SchedulingPolicy::ShortestJobFirst;
     }
 
+    if (policy_name == "backfill") {
+        return SchedulingPolicy::Backfill;
+    }
+
     throw std::invalid_argument(
         "unknown scheduling policy: " + policy_name
-        + " (expected fcfs or sjf)");
+        + " (expected fcfs, sjf, or backfill)");
 }
 
 SimulationResult run_simulation(const std::vector<Job>& jobs, int total_cpus,

@@ -9,7 +9,7 @@
 int main(int argc, char* argv[]) {
     if (argc != 3 && argc != 4) {
         std::cerr << "Usage: " << argv[0]
-                  << " <workload.csv> <results.csv> [fcfs|sjf]\n";
+                  << " <workload.csv> <results.csv> [fcfs|sjf|backfill]\n";
         return 1;
     }
 

@@ -6,7 +6,7 @@ A small C++ simulator for learning how jobs can be scheduled on compute-cluster 
 
 The program loads jobs from CSV and processes their arrivals and completions in simulated-time order on one 8-CPU node. The simulated clock jumps directly to each event time.
 
-Waiting jobs can be ordered using strict First-Come, First-Served scheduling or non-preemptive Shortest Job First scheduling. Neither policy skips its highest-priority waiting job when that job cannot fit.
+The available policies are strict First-Come, First-Served, non-preemptive Shortest Job First, and simple greedy backfilling. Backfill uses FCFS priority but may run later jobs when the first waiting job cannot currently fit. It does not model SLURM or reservation-based backfilling.
 
 ## Build
 
@@ -21,11 +21,12 @@ cmake --build build
 ./build/cluster-scheduler-sim workloads/example.csv results.csv
 ```
 
-FCFS is the default. Select either policy with an optional final argument:
+FCFS is the default. Select a policy with an optional final argument:
 
 ```sh
 ./build/cluster-scheduler-sim workloads/example.csv fcfs-results.csv fcfs
 ./build/cluster-scheduler-sim workloads/example.csv sjf-results.csv sjf
+./build/cluster-scheduler-sim workloads/example.csv backfill-results.csv backfill
 ```
 
 ## Generate a workload

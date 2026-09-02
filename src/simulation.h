@@ -9,7 +9,8 @@
 
 enum class SchedulingPolicy {
     Fcfs,
-    ShortestJobFirst
+    ShortestJobFirst,
+    Backfill
 };
 
 struct SimulationResult {

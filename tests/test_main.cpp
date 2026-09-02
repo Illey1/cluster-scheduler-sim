@@ -246,12 +246,95 @@ void test_sjf_restores_all_cpus() {
           "SJF did not restore all CPUs");
 }
 
+std::vector<Job> backfill_comparison_workload() {
+    return {
+        Job(1, 0, 10, 6),
+        Job(2, 1, 4, 4),
+        Job(3, 2, 3, 2)
+    };
+}
+
+void test_backfill_starts_later_fitting_job() {
+    const std::vector<Job> jobs = backfill_comparison_workload();
+    const SimulationResult fcfs = simulate(jobs, 8, SchedulingPolicy::Fcfs);
+    const SimulationResult backfill = simulate(
+        jobs, 8, SchedulingPolicy::Backfill);
+
+    check_times(fcfs, 3, 10, 13, 8);
+    check_times(backfill, 3, 2, 5, 0);
+    check_times(backfill, 2, 10, 14, 9);
+}
+
+void test_backfill_preserves_blocked_job_order() {
+    const SimulationResult simulation = simulate({
+        Job(1, 0, 10, 6),
+        Job(2, 1, 4, 8),
+        Job(3, 2, 3, 2),
+        Job(4, 3, 1, 8)
+    }, 8, SchedulingPolicy::Backfill);
+
+    check_times(simulation, 3, 2, 5, 0);
+    check_times(simulation, 2, 10, 14, 9);
+    check_times(simulation, 4, 14, 15, 11);
+}
+
+void test_greedy_backfill_can_delay_earlier_job() {
+    const std::vector<Job> jobs = {
+        Job(1, 0, 10, 6),
+        Job(2, 1, 4, 8),
+        Job(3, 2, 20, 2)
+    };
+    const SimulationResult fcfs = simulate(jobs, 8, SchedulingPolicy::Fcfs);
+    const SimulationResult backfill = simulate(
+        jobs, 8, SchedulingPolicy::Backfill);
+
+    check_times(fcfs, 2, 10, 14, 9);
+    check_times(backfill, 3, 2, 22, 0);
+    check_times(backfill, 2, 22, 26, 21);
+}
+
+void test_backfill_stops_when_no_waiting_job_fits() {
+    const SimulationResult simulation = simulate({
+        Job(1, 0, 10, 6),
+        Job(2, 1, 2, 8),
+        Job(3, 2, 3, 4)
+    }, 8, SchedulingPolicy::Backfill);
+
+    check_times(simulation, 2, 10, 12, 9);
+    check_times(simulation, 3, 12, 15, 10);
+}
+
+void test_backfill_starts_multiple_fitting_jobs() {
+    const SimulationResult simulation = simulate({
+        Job(1, 0, 10, 4),
+        Job(2, 0, 5, 4),
+        Job(3, 1, 2, 8),
+        Job(4, 2, 2, 2),
+        Job(5, 3, 2, 2)
+    }, 8, SchedulingPolicy::Backfill);
+
+    check_times(simulation, 4, 5, 7, 3);
+    check_times(simulation, 5, 5, 7, 2);
+    check_times(simulation, 3, 10, 12, 9);
+}
+
+void test_backfill_restores_all_cpus() {
+    const SimulationResult simulation = simulate(
+        backfill_comparison_workload(), 8,
+        SchedulingPolicy::Backfill);
+
+    check(simulation.available_cpus == 8,
+          "backfill did not restore all CPUs");
+}
+
 void test_policy_names_are_parsed_and_validated() {
     check(parse_scheduling_policy("fcfs") == SchedulingPolicy::Fcfs,
           "fcfs policy name was not parsed");
     check(parse_scheduling_policy("sjf")
               == SchedulingPolicy::ShortestJobFirst,
           "sjf policy name was not parsed");
+    check(parse_scheduling_policy("backfill") == SchedulingPolicy::Backfill,
+          "backfill policy name was not parsed");
     expect_error_containing([] {
         parse_scheduling_policy("unknown");
     }, "unknown scheduling policy: unknown");
@@ -344,6 +427,17 @@ int main() {
         {"SJF does not skip blocked highest-priority job",
          test_sjf_does_not_skip_blocked_highest_priority_job},
         {"SJF restores all CPUs", test_sjf_restores_all_cpus},
+        {"backfill starts later fitting job",
+         test_backfill_starts_later_fitting_job},
+        {"backfill preserves blocked job order",
+         test_backfill_preserves_blocked_job_order},
+        {"greedy backfill can delay earlier job",
+         test_greedy_backfill_can_delay_earlier_job},
+        {"backfill stops when no waiting job fits",
+         test_backfill_stops_when_no_waiting_job_fits},
+        {"backfill starts multiple fitting jobs",
+         test_backfill_starts_multiple_fitting_jobs},
+        {"backfill restores all CPUs", test_backfill_restores_all_cpus},
         {"policy names are parsed and validated",
          test_policy_names_are_parsed_and_validated},
         {"valid CSV is parsed", test_valid_csv_is_parsed},
