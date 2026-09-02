@@ -6,7 +6,7 @@ A small C++ simulator for learning how jobs can be scheduled on compute-cluster 
 
 The program loads jobs from CSV and processes their arrivals and completions in simulated-time order on one 8-CPU node. The simulated clock jumps directly to each event time.
 
-Jobs that cannot start immediately wait in a strict First-Come, First-Served queue. If the first waiting job cannot fit, smaller jobs behind it do not run early.
+Waiting jobs can be ordered using strict First-Come, First-Served scheduling or non-preemptive Shortest Job First scheduling. Neither policy skips its highest-priority waiting job when that job cannot fit.
 
 ## Build
 
@@ -19,6 +19,13 @@ cmake --build build
 
 ```sh
 ./build/cluster-scheduler-sim workloads/example.csv results.csv
+```
+
+FCFS is the default. Select either policy with an optional final argument:
+
+```sh
+./build/cluster-scheduler-sim workloads/example.csv fcfs-results.csv fcfs
+./build/cluster-scheduler-sim workloads/example.csv sjf-results.csv sjf
 ```
 
 ## Generate a workload

@@ -7,16 +7,19 @@
 #include <vector>
 
 int main(int argc, char* argv[]) {
-    if (argc != 3) {
+    if (argc != 3 && argc != 4) {
         std::cerr << "Usage: " << argv[0]
-                  << " <workload.csv> <results.csv>\n";
+                  << " <workload.csv> <results.csv> [fcfs|sjf]\n";
         return 1;
     }
 
     try {
+        const SchedulingPolicy policy = argc == 4
+            ? parse_scheduling_policy(argv[3])
+            : SchedulingPolicy::Fcfs;
         const std::vector<Job> jobs = read_jobs_from_csv(argv[1]);
         const SimulationResult simulation =
-            run_simulation(jobs, 8, std::cout);
+            run_simulation(jobs, 8, std::cout, policy);
 
         std::cout << "Simulation finished at time " << simulation.final_time
                   << "; " << simulation.available_cpus << "/8"

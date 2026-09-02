@@ -20,9 +20,11 @@ void check(bool condition, const std::string& message) {
     }
 }
 
-SimulationResult simulate(const std::vector<Job>& jobs, int total_cpus) {
+SimulationResult simulate(
+    const std::vector<Job>& jobs, int total_cpus,
+    SchedulingPolicy policy = SchedulingPolicy::Fcfs) {
     std::ostringstream ignored_log;
-    return run_simulation(jobs, total_cpus, ignored_log);
+    return run_simulation(jobs, total_cpus, ignored_log, policy);
 }
 
 const JobResult& find_result(const SimulationResult& simulation, int job_id) {
@@ -172,6 +174,89 @@ void test_zero_runtime_job_completes_deterministically() {
           "zero-runtime job did not release its CPUs");
 }
 
+std::vector<Job> policy_comparison_workload() {
+    return {
+        Job(1, 0, 10, 8),
+        Job(2, 1, 8, 8),
+        Job(3, 2, 2, 8)
+    };
+}
+
+void test_sjf_chooses_shorter_waiting_job() {
+    const SimulationResult simulation = simulate(
+        policy_comparison_workload(), 8,
+        SchedulingPolicy::ShortestJobFirst);
+
+    check_times(simulation, 3, 10, 12, 8);
+    check_times(simulation, 2, 12, 20, 11);
+}
+
+void test_fcfs_and_sjf_produce_different_ordering() {
+    const std::vector<Job> jobs = policy_comparison_workload();
+    const SimulationResult fcfs = simulate(jobs, 8, SchedulingPolicy::Fcfs);
+    const SimulationResult sjf = simulate(
+        jobs, 8, SchedulingPolicy::ShortestJobFirst);
+
+    check_times(fcfs, 2, 10, 18, 9);
+    check_times(fcfs, 3, 18, 20, 16);
+    check_times(sjf, 3, 10, 12, 8);
+    check(find_result(fcfs, 3).start_time != find_result(sjf, 3).start_time,
+          "FCFS and SJF produced the same ordering");
+}
+
+void test_sjf_runtime_tie_uses_submission_time() {
+    const SimulationResult simulation = simulate({
+        Job(1, 0, 10, 8),
+        Job(2, 1, 3, 8),
+        Job(3, 2, 3, 8)
+    }, 8, SchedulingPolicy::ShortestJobFirst);
+
+    check_times(simulation, 2, 10, 13, 9);
+    check_times(simulation, 3, 13, 16, 11);
+}
+
+void test_sjf_runtime_and_submission_tie_uses_job_id() {
+    const SimulationResult simulation = simulate({
+        Job(3, 1, 3, 8),
+        Job(1, 0, 10, 8),
+        Job(2, 1, 3, 8)
+    }, 8, SchedulingPolicy::ShortestJobFirst);
+
+    check_times(simulation, 2, 10, 13, 9);
+    check_times(simulation, 3, 13, 16, 12);
+}
+
+void test_sjf_does_not_skip_blocked_highest_priority_job() {
+    const SimulationResult simulation = simulate({
+        Job(1, 0, 10, 4),
+        Job(2, 1, 2, 8),
+        Job(3, 2, 5, 2)
+    }, 8, SchedulingPolicy::ShortestJobFirst);
+
+    check_times(simulation, 2, 10, 12, 9);
+    check_times(simulation, 3, 12, 17, 10);
+}
+
+void test_sjf_restores_all_cpus() {
+    const SimulationResult simulation = simulate(
+        policy_comparison_workload(), 8,
+        SchedulingPolicy::ShortestJobFirst);
+
+    check(simulation.available_cpus == 8,
+          "SJF did not restore all CPUs");
+}
+
+void test_policy_names_are_parsed_and_validated() {
+    check(parse_scheduling_policy("fcfs") == SchedulingPolicy::Fcfs,
+          "fcfs policy name was not parsed");
+    check(parse_scheduling_policy("sjf")
+              == SchedulingPolicy::ShortestJobFirst,
+          "sjf policy name was not parsed");
+    expect_error_containing([] {
+        parse_scheduling_policy("unknown");
+    }, "unknown scheduling policy: unknown");
+}
+
 void test_valid_csv_is_parsed() {
     const std::filesystem::path path = write_test_csv(
         "cluster-scheduler-valid.csv",
@@ -248,6 +333,19 @@ int main() {
          test_duplicate_job_ids_are_rejected},
         {"zero-runtime job is deterministic",
          test_zero_runtime_job_completes_deterministically},
+        {"SJF chooses shorter waiting job",
+         test_sjf_chooses_shorter_waiting_job},
+        {"FCFS and SJF produce different ordering",
+         test_fcfs_and_sjf_produce_different_ordering},
+        {"SJF runtime tie uses submission time",
+         test_sjf_runtime_tie_uses_submission_time},
+        {"SJF runtime and submission tie uses job ID",
+         test_sjf_runtime_and_submission_tie_uses_job_id},
+        {"SJF does not skip blocked highest-priority job",
+         test_sjf_does_not_skip_blocked_highest_priority_job},
+        {"SJF restores all CPUs", test_sjf_restores_all_cpus},
+        {"policy names are parsed and validated",
+         test_policy_names_are_parsed_and_validated},
         {"valid CSV is parsed", test_valid_csv_is_parsed},
         {"malformed CSV row is rejected",
          test_malformed_csv_row_is_rejected},
