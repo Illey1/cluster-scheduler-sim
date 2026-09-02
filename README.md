@@ -21,6 +21,17 @@ cmake --build build
 ./build/cluster-scheduler-sim workloads/example.csv results.csv
 ```
 
+## Generate a workload
+
+```sh
+python3 scripts/generate_workload.py \
+    --jobs 100 \
+    --seed 42 \
+    --output workloads/generated.csv
+```
+
+The generator creates synthetic workloads using simple random integer ranges. A seed makes the generated CSV reproducible.
+
 ## Workload CSV
 
 The input file contains one job per row:
