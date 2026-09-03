@@ -40,6 +40,19 @@ python3 scripts/generate_workload.py \
 
 The generator creates synthetic workloads using simple random integer ranges. A seed makes the generated CSV reproducible.
 
+## Analyze results
+
+```sh
+python3 scripts/analyze_results.py \
+    --total-cpus 8 \
+    --result fcfs=fcfs-results.csv \
+    --result sjf=sjf-results.csv \
+    --result backfill=backfill-results.csv \
+    --output summary.csv
+```
+
+The analyzer checks that result files represent the same workload, then counts completed jobs and reports average, median, and nearest-rank p95 wait time. It also reports average turnaround (`completion - submission`), throughput in jobs per simulated time unit, and CPU utilization as a percentage. Throughput and utilization use the interval from the earliest submission to the latest completion.
+
 ## Workload CSV
 
 The input file contains one job per row:
