@@ -53,6 +53,10 @@ python3 scripts/analyze_results.py \
 
 The analyzer checks that result files represent the same workload, then counts completed jobs and reports average, median, and nearest-rank p95 wait time. It also reports average turnaround (`completion - submission`), throughput in jobs per simulated time unit, and CPU utilization as a percentage. Throughput and utilization use the interval from the earliest submission to the latest completion.
 
+## Experiments
+
+See [`experiments/README.md`](experiments/README.md) for the controlled multi-seed comparison and reproduction instructions.
+
 ## Workload CSV
 
 The input file contains one job per row:
