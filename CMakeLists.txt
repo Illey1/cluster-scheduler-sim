@@ -34,3 +34,18 @@ set_target_properties(cluster-scheduler-tests PROPERTIES
 )
 
 add_test(NAME cluster-scheduler-tests COMMAND cluster-scheduler-tests)
+
+add_test(
+    NAME cluster-scheduler-cli-default
+    COMMAND cluster-scheduler-sim
+        ${CMAKE_CURRENT_SOURCE_DIR}/workloads/example.csv
+        ${CMAKE_CURRENT_BINARY_DIR}/cli-default-results.csv
+)
+
+add_test(
+    NAME cluster-scheduler-cli-multinode
+    COMMAND cluster-scheduler-sim
+        ${CMAKE_CURRENT_SOURCE_DIR}/workloads/multinode.csv
+        ${CMAKE_CURRENT_BINARY_DIR}/cli-multinode-results.csv
+        backfill --nodes 2 --cpus-per-node 4
+)

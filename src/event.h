@@ -11,6 +11,7 @@ struct Event {
     int time;
     EventType type;
     Job job;
+    int node_id = -1;
 };
 
 struct EventCompare {

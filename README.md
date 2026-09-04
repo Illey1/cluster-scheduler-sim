@@ -1,10 +1,12 @@
 # cluster-scheduler-sim
 
-A discrete-event batch scheduling simulator written in C++. It models one node with a fixed CPU capacity and compares strict first-come, first-served (FCFS), non-preemptive shortest job first (SJF), and simple greedy backfilling. Python scripts generate synthetic workloads, analyze result CSVs, and reproduce a controlled 90-run experiment.
+A discrete-event batch scheduling simulator written in C++. It models homogeneous CPU nodes and compares strict first-come, first-served (FCFS), non-preemptive shortest job first (SJF), and simple greedy backfilling. Python scripts generate synthetic workloads, analyze result CSVs, and reproduce a controlled single-node experiment.
 
 ## How it works
 
-Each job has a submission time, requested runtime, and CPU request. The simulator processes arrivals and completions in simulated-time order. A scheduling policy selects jobs from the waiting queue when CPUs are available; running jobs are non-preemptive, and their CPUs return to the node when they complete. The included executable models one 8-CPU node.
+Each job has a submission time, requested runtime, and CPU request. The simulator processes arrivals and completions in simulated-time order. A scheduling policy selects jobs from the waiting queue when CPUs are available; running jobs are non-preemptive, and their CPUs return to the assigned node when they complete.
+
+The default configuration is one 8-CPU node. A job must fit entirely on one node, and placement uses deterministic first-fit order by node ID.
 
 ## Build and use
 
@@ -21,7 +23,16 @@ Run the provided workload with any policy:
 ./build/cluster-scheduler-sim workloads/example.csv /tmp/backfill-results.csv backfill
 ```
 
-The policy argument is optional and defaults to `fcfs`. The workload schema is:
+The policy argument is optional and defaults to `fcfs`.
+
+Configure a homogeneous multi-node cluster with two optional flags:
+
+```sh
+./build/cluster-scheduler-sim workloads/multinode.csv /tmp/multinode-results.csv \
+    backfill --nodes 2 --cpus-per-node 4
+```
+
+The workload schema is:
 
 ```text
 job_id,submission_time,requested_runtime,requested_cpus
@@ -55,13 +66,13 @@ The analyzer verifies that compared files contain the same submitted workload. I
 |---|---|
 | FCFS | Selects the earliest submitted waiting job. If that job cannot fit, later jobs do not run. |
 | SJF | Selects the waiting job with the shortest requested runtime. It is non-preemptive, and a blocked highest-priority job is not bypassed. |
-| Backfill | Keeps FCFS priority but may run later jobs when the front job is blocked and they fit in the currently available CPUs. |
+| Backfill | Keeps FCFS priority but may run later jobs when the front job is blocked and they fit on a currently available node. |
 
 Backfill is a greedy current-capacity scan with no future reservation. It is not SLURM or EASY backfill.
 
 ## Experiment
 
-The controlled experiment uses 200 jobs, seeds 1–10, three submission-pressure conditions, and all three policies: 90 simulations on one 8-CPU node. For each seed, the conditions preserve job IDs, runtimes, and CPU requests and change only submission-time spacing.
+The original controlled experiment uses 200 jobs, seeds 1–10, three submission-pressure conditions, and all three policies: 90 simulations with a configuration of 1 node × 8 CPUs. For each seed, the conditions preserve job IDs, runtimes, and CPU requests and change only submission-time spacing. These results do not measure multi-node behavior.
 
 Heavy-pressure aggregate means across the ten seeds:
 
@@ -104,9 +115,11 @@ Raw workloads and per-job results are written under the ignored `experiments/raw
 
 ## Limitations
 
-- One fixed 8-CPU node; no memory, GPU, network, or multi-node resources
+- Homogeneous CPU-only nodes; no memory, GPU, network, or heterogeneous capacities
+- Jobs cannot span nodes, and first-fit is the only placement rule
 - Synthetic workloads with known fixed runtimes rather than production traces
 - Non-preemptive execution and sequential processing of same-time arrivals
 - Vector-based waiting queues with linear policy scans
 - Simple greedy backfill without reservations or production SLURM fidelity
+- The source-controlled experiment covers only the original one-node, 8-CPU configuration
 - Descriptive results for ten seeds, without statistical-significance claims

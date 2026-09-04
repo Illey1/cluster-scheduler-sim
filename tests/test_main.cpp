@@ -27,6 +27,14 @@ SimulationResult simulate(
     return run_simulation(jobs, total_cpus, ignored_log, policy);
 }
 
+SimulationResult simulate_cluster(
+    const std::vector<Job>& jobs, int node_count, int cpus_per_node,
+    SchedulingPolicy policy = SchedulingPolicy::Fcfs) {
+    std::ostringstream ignored_log;
+    return run_simulation(
+        jobs, node_count, cpus_per_node, ignored_log, policy);
+}
+
 const JobResult& find_result(const SimulationResult& simulation, int job_id) {
     for (const JobResult& result : simulation.job_results) {
         if (result.job.id() == job_id) {
@@ -47,6 +55,12 @@ void check_times(const SimulationResult& simulation, int job_id,
           "unexpected completion time for Job " + std::to_string(job_id));
     check(result.wait_time() == wait_time,
           "unexpected wait time for Job " + std::to_string(job_id));
+}
+
+void check_node(const SimulationResult& simulation, int job_id, int node_id) {
+    const JobResult& result = find_result(simulation, job_id);
+    check(result.node_id == node_id,
+          "unexpected node for Job " + std::to_string(job_id));
 }
 
 void expect_error_containing(const std::function<void()>& action,
@@ -172,6 +186,116 @@ void test_zero_runtime_job_completes_deterministically() {
     check_times(simulation, 2, 0, 2, 0);
     check(simulation.available_cpus == 4,
           "zero-runtime job did not release its CPUs");
+}
+
+void test_single_node_reports_node_zero_and_full_capacity() {
+    const SimulationResult simulation = simulate({Job(1, 5, 3, 2)}, 8);
+
+    check_times(simulation, 1, 5, 8, 0);
+    check_node(simulation, 1, 0);
+    check(simulation.available_cpus == 8,
+          "single-node aggregate capacity was not restored");
+    check(simulation.available_cpus_by_node == std::vector<int>{8},
+          "single-node final capacity was not reported correctly");
+}
+
+void test_first_fit_placement_and_spill_to_later_node() {
+    const SimulationResult simulation = simulate_cluster({
+        Job(1, 0, 10, 3),
+        Job(2, 0, 10, 3),
+        Job(3, 1, 1, 1)
+    }, 3, 4);
+
+    check_node(simulation, 1, 0);
+    check_node(simulation, 2, 1);
+    check_node(simulation, 3, 0);
+}
+
+void test_completion_releases_cpus_to_owning_node() {
+    const SimulationResult simulation = simulate_cluster({
+        Job(1, 0, 10, 4),
+        Job(2, 0, 2, 4),
+        Job(3, 1, 1, 4)
+    }, 2, 4);
+
+    check_node(simulation, 1, 0);
+    check_node(simulation, 2, 1);
+    check_times(simulation, 3, 2, 3, 1);
+    check_node(simulation, 3, 1);
+    check(simulation.available_cpus == 8,
+          "multi-node aggregate capacity was not restored");
+    check(simulation.available_cpus_by_node == std::vector<int>{4, 4},
+          "not all nodes returned to full capacity");
+}
+
+void test_fragmentation_blocks_job_until_one_node_has_capacity() {
+    const SimulationResult simulation = simulate_cluster({
+        Job(1, 0, 10, 2),
+        Job(2, 0, 4, 2),
+        Job(3, 0, 10, 2),
+        Job(4, 4, 1, 4)
+    }, 2, 4);
+
+    check_node(simulation, 1, 0);
+    check_node(simulation, 2, 0);
+    check_node(simulation, 3, 1);
+    check_times(simulation, 4, 10, 11, 6);
+    check_node(simulation, 4, 0);
+}
+
+void test_fcfs_blocks_while_backfill_runs_later_fitting_job() {
+    const std::vector<Job> jobs = {
+        Job(1, 0, 10, 4),
+        Job(2, 0, 10, 2),
+        Job(3, 1, 2, 4),
+        Job(4, 2, 3, 2)
+    };
+    const SimulationResult fcfs = simulate_cluster(
+        jobs, 2, 4, SchedulingPolicy::Fcfs);
+    const SimulationResult backfill = simulate_cluster(
+        jobs, 2, 4, SchedulingPolicy::Backfill);
+
+    check_times(fcfs, 4, 10, 13, 8);
+    check_node(fcfs, 4, 1);
+    check_times(backfill, 4, 2, 5, 0);
+    check_node(backfill, 4, 1);
+    check_times(backfill, 3, 10, 12, 9);
+    check_node(backfill, 3, 0);
+}
+
+void test_sjf_selects_shortest_job_before_first_fit_placement() {
+    const SimulationResult simulation = simulate_cluster({
+        Job(1, 0, 10, 4),
+        Job(2, 0, 10, 4),
+        Job(3, 1, 5, 4),
+        Job(4, 2, 2, 4)
+    }, 2, 4, SchedulingPolicy::ShortestJobFirst);
+
+    check_times(simulation, 4, 10, 12, 8);
+    check_node(simulation, 4, 0);
+    check_times(simulation, 3, 10, 15, 9);
+    check_node(simulation, 3, 1);
+}
+
+void test_job_must_fit_within_one_node() {
+    expect_error_containing([] {
+        simulate_cluster({Job(7, 0, 1, 6)}, 2, 4);
+    }, "Job 7 requests 6 CPUs, exceeding node capacity of 4");
+}
+
+void test_invalid_cluster_configuration_is_rejected() {
+    expect_error_containing([] {
+        simulate_cluster({}, 0, 4);
+    }, "node count must be positive");
+    expect_error_containing([] {
+        simulate_cluster({}, -1, 4);
+    }, "node count must be positive");
+    expect_error_containing([] {
+        simulate_cluster({}, 2, 0);
+    }, "CPUs per node must be positive");
+    expect_error_containing([] {
+        simulate_cluster({}, 2, -1);
+    }, "CPUs per node must be positive");
 }
 
 std::vector<Job> policy_comparison_workload() {
@@ -416,6 +540,22 @@ int main() {
          test_duplicate_job_ids_are_rejected},
         {"zero-runtime job is deterministic",
          test_zero_runtime_job_completes_deterministically},
+        {"single-node placement and capacity",
+         test_single_node_reports_node_zero_and_full_capacity},
+        {"first-fit placement and node spill",
+         test_first_fit_placement_and_spill_to_later_node},
+        {"completion releases owning-node CPUs",
+         test_completion_releases_cpus_to_owning_node},
+        {"fragmentation blocks until one node has capacity",
+         test_fragmentation_blocks_job_until_one_node_has_capacity},
+        {"FCFS blocks while backfill runs a fitting job",
+         test_fcfs_blocks_while_backfill_runs_later_fitting_job},
+        {"SJF selects before first-fit placement",
+         test_sjf_selects_shortest_job_before_first_fit_placement},
+        {"job must fit within one node",
+         test_job_must_fit_within_one_node},
+        {"invalid cluster configuration is rejected",
+         test_invalid_cluster_configuration_is_rejected},
         {"SJF chooses shorter waiting job",
          test_sjf_chooses_shorter_waiting_job},
         {"FCFS and SJF produce different ordering",
