@@ -1,4 +1,8 @@
 build/
 cmake-build-*/
 .idea/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
 experiments/raw/

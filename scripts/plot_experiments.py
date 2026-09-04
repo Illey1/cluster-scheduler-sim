@@ -40,8 +40,9 @@ def read_summary(path):
     try:
         input_file = path.open(encoding="utf-8", newline="")
     except OSError as error:
-        raise ValueError(f"could not open aggregate CSV '{path}': {error}") \
-            from error
+        raise ValueError(
+            f"could not open aggregate CSV '{path}': {error}"
+        ) from error
 
     with input_file:
         reader = csv.DictReader(input_file)

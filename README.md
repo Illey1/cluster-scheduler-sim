@@ -1,79 +1,112 @@
 # cluster-scheduler-sim
 
-A small C++ simulator for learning how jobs can be scheduled on compute-cluster nodes. It is inspired by submitting jobs to managed clusters.
+A discrete-event batch scheduling simulator written in C++. It models one node with a fixed CPU capacity and compares strict first-come, first-served (FCFS), non-preemptive shortest job first (SJF), and simple greedy backfilling. Python scripts generate synthetic workloads, analyze result CSVs, and reproduce a controlled 90-run experiment.
 
-## Behavior
+## How it works
 
-The program loads jobs from CSV and processes their arrivals and completions in simulated-time order on one 8-CPU node. The simulated clock jumps directly to each event time.
+Each job has a submission time, requested runtime, and CPU request. The simulator processes arrivals and completions in simulated-time order. A scheduling policy selects jobs from the waiting queue when CPUs are available; running jobs are non-preemptive, and their CPUs return to the node when they complete. The included executable models one 8-CPU node.
 
-The available policies are strict First-Come, First-Served, non-preemptive Shortest Job First, and simple greedy backfilling. Backfill uses FCFS priority but may run later jobs when the first waiting job cannot currently fit. It does not model SLURM or reservation-based backfilling.
-
-## Build
+## Build and use
 
 ```sh
 cmake -S . -B build
 cmake --build build
 ```
 
-## Run the example
+Run the provided workload with any policy:
 
 ```sh
-./build/cluster-scheduler-sim workloads/example.csv results.csv
+./build/cluster-scheduler-sim workloads/example.csv /tmp/fcfs-results.csv fcfs
+./build/cluster-scheduler-sim workloads/example.csv /tmp/sjf-results.csv sjf
+./build/cluster-scheduler-sim workloads/example.csv /tmp/backfill-results.csv backfill
 ```
 
-FCFS is the default. Select a policy with an optional final argument:
+The policy argument is optional and defaults to `fcfs`. The workload schema is:
 
-```sh
-./build/cluster-scheduler-sim workloads/example.csv fcfs-results.csv fcfs
-./build/cluster-scheduler-sim workloads/example.csv sjf-results.csv sjf
-./build/cluster-scheduler-sim workloads/example.csv backfill-results.csv backfill
+```text
+job_id,submission_time,requested_runtime,requested_cpus
 ```
 
-## Generate a workload
+Generate a reproducible synthetic workload:
 
 ```sh
 python3 scripts/generate_workload.py \
     --jobs 100 \
     --seed 42 \
-    --output workloads/generated.csv
+    --output /tmp/generated-workload.csv
 ```
 
-The generator creates synthetic workloads using simple random integer ranges. A seed makes the generated CSV reproducible.
-
-## Analyze results
+Analyze one or more result files:
 
 ```sh
 python3 scripts/analyze_results.py \
     --total-cpus 8 \
-    --result fcfs=fcfs-results.csv \
-    --result sjf=sjf-results.csv \
-    --result backfill=backfill-results.csv \
-    --output summary.csv
+    --result fcfs=/tmp/fcfs-results.csv \
+    --result sjf=/tmp/sjf-results.csv \
+    --result backfill=/tmp/backfill-results.csv \
+    --output /tmp/summary.csv
 ```
 
-The analyzer checks that result files represent the same workload, then counts completed jobs and reports average, median, and nearest-rank p95 wait time. It also reports average turnaround (`completion - submission`), throughput in jobs per simulated time unit, and CPU utilization as a percentage. Throughput and utilization use the interval from the earliest submission to the latest completion.
+The analyzer verifies that compared files contain the same submitted workload. It reports completed jobs, average/median/nearest-rank p95 wait, average turnaround, throughput in jobs per simulated time unit, and CPU utilization.
 
-## Experiments
+## Scheduling policies
 
-See [`experiments/README.md`](experiments/README.md) for the controlled multi-seed comparison and reproduction instructions.
+| Policy | Selection rule |
+|---|---|
+| FCFS | Selects the earliest submitted waiting job. If that job cannot fit, later jobs do not run. |
+| SJF | Selects the waiting job with the shortest requested runtime. It is non-preemptive, and a blocked highest-priority job is not bypassed. |
+| Backfill | Keeps FCFS priority but may run later jobs when the front job is blocked and they fit in the currently available CPUs. |
 
-## Workload CSV
+Backfill is a greedy current-capacity scan with no future reservation. It is not SLURM or EASY backfill.
 
-The input file contains one job per row:
+## Experiment
 
-```text
-job_id,submission_time,requested_runtime,requested_cpus
-1,0,10,6
+The controlled experiment uses 200 jobs, seeds 1–10, three submission-pressure conditions, and all three policies: 90 simulations on one 8-CPU node. For each seed, the conditions preserve job IDs, runtimes, and CPU requests and change only submission-time spacing.
+
+Heavy-pressure aggregate means across the ten seeds:
+
+| Policy | Average wait | Median wait | P95 wait | CPU utilization |
+|---|---:|---:|---:|---:|
+| FCFS | 337.02 | 333.05 | 649.20 | 77.12% |
+| SJF | 191.34 | 13.20 | 833.00 | 80.91% |
+| Backfill | 147.02 | 92.75 | 467.50 | 93.96% |
+
+- Under light pressure, all policies had zero median wait and nearly identical throughput and utilization.
+- Under moderate and heavy pressure, FCFS accumulated larger waits and lower utilization. SJF kept median wait low but had the highest heavy-pressure p95 in every seed.
+- Backfill had the lowest aggregate mean and p95 waits under moderate and heavy pressure and the highest utilization, while SJF retained the lower median. The experiment did not show a systematic backfill p95 penalty from the lack of reservations.
+
+![Mean average wait by condition and policy](experiments/figures/average_wait.png)
+
+![Mean p95 wait by condition and policy](experiments/figures/p95_wait.png)
+
+The figures show means with sample standard deviation error bars. The [experiment note](experiments/README.md) contains the full results, run-level data, methodology, and limitations.
+
+## Reproduce the experiment
+
+After building the simulator:
+
+```sh
+python3 scripts/run_experiments.py \
+    --simulator ./build/cluster-scheduler-sim \
+    --output-dir experiments
 ```
 
-All values are integers, and simulated times use the same arbitrary time unit.
+Experiment execution uses the Python standard library. Matplotlib is needed only to regenerate the figures:
 
-## Result CSV
-
-The output contains one row per completed job:
-
-```text
-job_id,submission_time,start_time,completion_time,requested_runtime,requested_cpus,wait_time
+```sh
+python3 -m pip install -r requirements.txt
+python3 scripts/plot_experiments.py \
+    --summary experiments/summary.csv \
+    --output-dir experiments/figures
 ```
 
-Wait time is the difference between a job's start time and submission time.
+Raw workloads and per-job results are written under the ignored `experiments/raw/` directory. The run-level metrics, aggregate summary, and final figures remain source-controlled.
+
+## Limitations
+
+- One fixed 8-CPU node; no memory, GPU, network, or multi-node resources
+- Synthetic workloads with known fixed runtimes rather than production traces
+- Non-preemptive execution and sequential processing of same-time arrivals
+- Vector-based waiting queues with linear policy scans
+- Simple greedy backfill without reservations or production SLURM fidelity
+- Descriptive results for ten seeds, without statistical-significance claims

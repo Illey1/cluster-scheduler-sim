@@ -52,13 +52,15 @@ Error bars show one sample standard deviation across seeds.
 
 ## Reproduce
 
+The experiment driver uses the Python standard library. Matplotlib is required only for the plotting command.
+
 ```sh
-python3 -m pip install -r requirements.txt
 cmake -S . -B build
 cmake --build build
 python3 scripts/run_experiments.py \
     --simulator ./build/cluster-scheduler-sim \
     --output-dir experiments
+python3 -m pip install -r requirements.txt
 python3 scripts/plot_experiments.py \
     --summary experiments/summary.csv \
     --output-dir experiments/figures

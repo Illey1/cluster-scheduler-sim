@@ -232,8 +232,9 @@ def write_rows(path, header, rows):
                     for column in header
                 })
     except OSError as error:
-        raise ValueError(f"could not write experiment CSV '{path}': {error}") \
-            from error
+        raise ValueError(
+            f"could not write experiment CSV '{path}': {error}"
+        ) from error
 
 
 def run_experiment(simulator_path, output_directory):
@@ -284,8 +285,8 @@ def run_experiment(simulator_path, output_directory):
                 )
                 labeled_results.append((policy, result_path))
 
-            # This analyzes all policies together, so the Milestone 9 analyzer
-            # verifies that each policy received the same submitted workload.
+            # Analyzing all policies together verifies that each policy received
+            # the same submitted workload.
             summaries = analyze_results.analyze_result_files(
                 labeled_results,
                 TOTAL_CPUS,
