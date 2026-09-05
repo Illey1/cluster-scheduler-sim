@@ -92,6 +92,8 @@ Heavy-pressure aggregate means across the ten seeds:
 
 The figures show means with sample standard deviation error bars. The [experiment note](experiments/README.md) contains the full results, run-level data, methodology, and limitations.
 
+A separate [controlled multi-node experiment](experiments/multinode/README.md) holds total capacity at 32 CPUs and compares `1×32`, `2×16`, and `4×8` under first-fit placement.
+
 ## Reproduce the experiment
 
 After building the simulator:
@@ -121,5 +123,5 @@ Raw workloads and per-job results are written under the ignored `experiments/raw
 - Non-preemptive execution and sequential processing of same-time arrivals
 - Vector-based waiting queues with linear policy scans
 - Simple greedy backfill without reservations or production SLURM fidelity
-- The source-controlled experiment covers only the original one-node, 8-CPU configuration
+- The multi-node experiment covers only `1×32`, `2×16`, and `4×8` homogeneous shapes under first-fit placement
 - Descriptive results for ten seeds, without statistical-significance claims
